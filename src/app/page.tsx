@@ -25,7 +25,9 @@ export default function Home() {
   const [guestGenerationCount, setGuestGenerationCount] = useState(0);
 
   const supabase = useMemo(() => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseUrl =
+      process.env.NEXT_PUBLIC_SUPABASE_URL ??
+      process.env.NEXT_PUBLIC_SUPABASE_DATABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
