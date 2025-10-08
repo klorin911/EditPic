@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
-import Header from "../components/Header";
+import Header from "@/components/Header";
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

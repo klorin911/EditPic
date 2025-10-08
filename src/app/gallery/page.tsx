@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
-import Header from "../../components/Header";
+import Header from "@/components/Header";
 
 const GRID_COLUMNS = "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
 
