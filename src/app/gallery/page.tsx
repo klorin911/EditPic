@@ -22,6 +22,8 @@ export default function GalleryPage() {
   const [creations, setCreations] = useState<Creation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [selectedCreation, setSelectedCreation] = useState<Creation | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   const supabase = useMemo(() => {
     const supabaseUrl =
@@ -141,6 +143,49 @@ export default function GalleryPage() {
     }
   };
 
+  const handleDownload = async (creation: Creation) => {
+    setErrorMessage(null);
+    setDownloadingId(creation.id);
+    try {
+      const response = await fetch(creation.image_url);
+      if (!response.ok) {
+        throw new Error("Unable to download image.");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${creation.prompt ?? "sketchpic-creation"}-${creation.id}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Download failed. Please try again.";
+      setErrorMessage(message);
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedCreation) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSelectedCreation(null);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [selectedCreation]);
+
   return (
     <div className="flex min-h-screen flex-col bg-[var(--color-background)] text-[var(--color-foreground)]">
       <Header
@@ -197,20 +242,29 @@ export default function GalleryPage() {
               No creations yet. Head back to the creator and save your first masterpiece!
             </p>
           ) : (
-            <ul className={`mt-6 grid gap-5 ${GRID_COLUMNS}`}>
+            <ul
+              className={`mt-6 grid justify-items-center gap-5 sm:justify-items-stretch ${GRID_COLUMNS}`}
+            >
               {creations.map((creation) => (
                 <li
                   key={creation.id}
-                  className="flex flex-col overflow-hidden rounded-2xl border border-[#2f2f4a] bg-[#161622]"
+                  className="flex w-full max-w-xs flex-col overflow-hidden rounded-2xl border border-[#2f2f4a] bg-[#161622] sm:max-w-none"
                 >
-                  <div className="relative h-48 w-full">
-                    <Image
-                      src={creation.image_url}
-                      alt={creation.prompt ?? "Generated image"}
-                      fill
-                      sizes="(min-width: 1024px) 25vw, 50vw"
-                      className="object-cover"
-                    />
+                  <div className="relative h-32 w-full sm:h-48">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCreation(creation)}
+                      className="relative block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]"
+                      aria-label={`Open preview for ${creation.prompt ?? "generated image"}`}
+                    >
+                      <Image
+                        src={creation.image_url}
+                        alt={creation.prompt ?? "Generated image"}
+                        fill
+                        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 40vw, 60vw"
+                        className="object-cover transition duration-200 hover:scale-[1.02]"
+                      />
+                    </button>
                   </div>
                   <div className="space-y-3 p-4">
                     {creation.prompt && (
@@ -221,20 +275,30 @@ export default function GalleryPage() {
                         <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
                           Original sketch
                         </p>
-                        <div className="mt-2 overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#11111a]">
+                        <div className="mt-2 overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#11111a] sm:max-w-full">
                           <Image
                             src={creation.sketch_data_url}
                             alt="Original sketch"
-                            width={420}
-                            height={420}
-                            className="h-auto w-full object-contain"
+                            width={260}
+                            height={260}
+                            className="h-auto w-full max-w-[220px] object-contain sm:max-w-none"
                           />
                         </div>
                       </div>
                     )}
-                    <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
-                      {new Date(creation.created_at).toLocaleString()}
-                    </p>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
+                        {new Date(creation.created_at).toLocaleString()}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(creation)}
+                        disabled={downloadingId === creation.id}
+                        className="self-start rounded-full border border-[#2f2f4a] px-3 py-1 text-xs text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
+                      >
+                        {downloadingId === creation.id ? "Downloading…" : "Download"}
+                      </button>
+                    </div>
                   </div>
                 </li>
               ))}
@@ -246,6 +310,72 @@ export default function GalleryPage() {
           )}
         </section>
       </main>
+
+      {selectedCreation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4 py-8">
+          <div
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setSelectedCreation(null)}
+            aria-hidden="true"
+          />
+          <div className="relative z-10 w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#2f2f4a] bg-[#11111a] p-6 shadow-lg shadow-black/40 max-h-[calc(100vh-4rem)]">
+            <div className="absolute right-4 top-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleDownload(selectedCreation)}
+                disabled={downloadingId === selectedCreation.id}
+                className="rounded-full bg-[#2b2b44] px-4 py-1.5 text-xs uppercase tracking-wide text-[#d0d2ff] transition hover:bg-[#34345a] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {downloadingId === selectedCreation.id ? "Downloading…" : "Download"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedCreation(null)}
+                className="rounded-full border border-[#2f2f4a] px-3 py-1 text-xs uppercase tracking-wide text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
+                aria-label="Close image preview"
+              >
+                Close
+              </button>
+            </div>
+            <div className="space-y-4 pt-10">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
+                  {new Date(selectedCreation.created_at).toLocaleString()}
+                </p>
+              </div>
+              <div className="relative aspect-[4/3] w-full max-h-[70vh] overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#161622]">
+                <Image
+                  src={selectedCreation.image_url}
+                  alt={selectedCreation.prompt ?? "Generated image"}
+                  fill
+                  sizes="(min-width: 1024px) 800px, 100vw"
+                  className="object-contain"
+                  priority
+                />
+              </div>
+              {selectedCreation.prompt && (
+                <p className="text-base text-[#d0d2ff]">{selectedCreation.prompt}</p>
+              )}
+              {selectedCreation.sketch_data_url && (
+                <div>
+                  <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
+                    Original sketch
+                  </p>
+                  <div className="mt-2 flex justify-center">
+                    <Image
+                      src={selectedCreation.sketch_data_url}
+                      alt="Original sketch"
+                      width={360}
+                      height={360}
+                      className="h-auto w-full max-w-xs rounded-xl border border-[#2f2f4a] bg-[#11111a] object-contain sm:max-w-md"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

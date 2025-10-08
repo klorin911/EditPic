@@ -508,12 +508,12 @@ export default function Home() {
 
       {/* Login Prompt Modal */}
       {showLoginPrompt && !user && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="relative mx-4 w-full max-w-md rounded-2xl border border-[#26263d] bg-[#1b1b2b] p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-md rounded-2xl border border-[#26263d] bg-[#1b1b2b] p-5 shadow-2xl sm:p-6">
             <button
               type="button"
               onClick={() => setShowLoginPrompt(false)}
-              className="absolute right-4 top-4 text-[#9ea0c9] transition hover:text-[var(--color-foreground)]"
+              className="absolute right-3 top-3 rounded-full p-1 text-[#9ea0c9] transition hover:bg-[#2f2f4a] hover:text-[var(--color-foreground)] sm:right-4 sm:top-4"
               aria-label="Close"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -521,27 +521,27 @@ export default function Home() {
               </svg>
             </button>
             <div className="flex flex-col items-center text-center">
-              <div className="mb-4 rounded-full bg-indigo-500/20 p-3">
-                <svg className="h-8 w-8 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="mb-3 rounded-full bg-indigo-500/20 p-3 sm:mb-4">
+                <svg className="h-7 w-7 text-indigo-400 sm:h-8 sm:w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-[var(--color-foreground)]">Sign in to continue</h3>
-              <p className="mt-2 text-sm text-[#a4a6d0]">
+              <h3 className="text-base font-semibold text-[var(--color-foreground)] sm:text-lg">Sign in to continue</h3>
+              <p className="mt-2 text-xs text-[#a4a6d0] sm:text-sm">
                 You&apos;ve used your free generation! Sign in with Google to create unlimited images and save them to your gallery.
               </p>
               <button
                 type="button"
                 onClick={handleSignIn}
                 disabled={isAuthLoading}
-                className="mt-6 w-full rounded-xl bg-indigo-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-5 w-full rounded-xl bg-indigo-500 px-4 py-3 text-sm font-medium text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 sm:mt-6"
               >
                 {isAuthLoading ? "Signing in…" : "Sign in with Google"}
               </button>
               <button
                 type="button"
                 onClick={() => setShowLoginPrompt(false)}
-                className="mt-3 text-xs text-[#9ea0c9] transition hover:text-[var(--color-foreground)]"
+                className="mt-3 rounded-lg px-3 py-2 text-xs text-[#9ea0c9] transition hover:bg-[#2f2f4a] hover:text-[var(--color-foreground)]"
               >
                 Maybe later
               </button>
@@ -550,36 +550,36 @@ export default function Home() {
         </div>
       )}
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-4 py-8 lg:flex-row">
-        <section className="flex w-full max-w-sm flex-col gap-4">
-          <div className="rounded-2xl border border-[#26263d] bg-[#1b1b2b] p-4 shadow-lg shadow-black/30">
-            <div className="flex items-center justify-between">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-4 px-4 py-6 sm:gap-6 sm:py-8 lg:flex-row">
+        <section className="flex w-full flex-col gap-4 lg:max-w-sm">
+          <div className="rounded-2xl border border-[#26263d] bg-[#1b1b2b] p-3 shadow-lg shadow-black/30 sm:p-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-sm font-medium text-[#d0d2ff]">Your sketch</h2>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleUndo}
                   disabled={!canUndo}
-                  className="rounded-full border border-[#2f2f4a] px-3 py-1 text-xs text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex-1 rounded-full border border-[#2f2f4a] px-3 py-1.5 text-xs text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-50 sm:flex-initial sm:py-1"
                 >
                   Undo
                 </button>
                 <button
                   type="button"
-                  className="rounded-full border border-[#2f2f4a] px-3 py-1 text-xs text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
+                  className="flex-1 rounded-full border border-[#2f2f4a] px-3 py-1.5 text-xs text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] sm:flex-initial sm:py-1"
                   onClick={handleClear}
                 >
                   Clear
                 </button>
               </div>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
               {toolOptions.map((tool) => (
                 <button
                   key={tool.value}
                   type="button"
                   onClick={() => setSelectedTool(tool.value)}
-                  className={`rounded-full border px-3 py-1 text-xs transition ${
+                  className={`rounded-full border px-3 py-1.5 text-xs transition sm:py-1 ${
                     selectedTool === tool.value
                       ? "border-indigo-400 bg-indigo-500/20 text-indigo-200"
                       : "border-[#2f2f4a] text-[#9ea0c9] hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
@@ -602,7 +602,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#26263d] bg-[#1b1b2b] p-4 shadow-lg shadow-black/30">
+          <div className="rounded-2xl border border-[#26263d] bg-[#1b1b2b] p-3 shadow-lg shadow-black/30 sm:p-4">
             <h2 className="text-sm font-medium text-[#d0d2ff]">Describe your image</h2>
             <textarea
               placeholder="Modern home, tree, road..."
@@ -614,7 +614,7 @@ export default function Home() {
               type="button"
               onClick={handleGenerate}
               disabled={isGenerating}
-              className="mt-4 w-full rounded-xl bg-indigo-500 px-4 py-2 text-sm font-medium text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-4 w-full rounded-xl bg-indigo-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isGenerating ? "Generating…" : "Generate"}
             </button>
@@ -622,7 +622,7 @@ export default function Home() {
               type="button"
               onClick={handleSaveToGallery}
               disabled={isSavingCreation || !generatedImage || !user}
-              className="mt-2 w-full rounded-xl border border-[#2f2f4a] px-4 py-2 text-sm text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-2 w-full rounded-xl border border-[#2f2f4a] px-4 py-2.5 text-sm text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {user ? (isSavingCreation ? "Saving…" : "Save to gallery") : "Sign in to save"}
             </button>
@@ -633,11 +633,11 @@ export default function Home() {
         </section>
 
         <section className="flex flex-1 flex-col">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-sm font-medium text-[#d0d2ff]">Generated image</h2>
             <span className="text-xs text-[#8e91bd]">Waiting for your prompt</span>
           </div>
-          <div className="mt-4 flex min-h-[420px] flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#3c3c60] bg-[#151523] text-sm">
+          <div className="mt-3 flex min-h-[300px] flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#3c3c60] bg-[#151523] text-sm sm:mt-4 sm:min-h-[420px]">
             {generatedImage ? (
               <div className="relative h-full w-full">
                 <Image
