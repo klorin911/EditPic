@@ -1,14 +1,19 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 
+const canvasContextOptions: CanvasRenderingContext2DSettings = { willReadFrequently: true };
+const MAX_CANVAS_DPR = 2;
+const MAX_EXPORT_DIMENSION = 768;
+
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [hasSketch, setHasSketch] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -23,6 +28,14 @@ export default function Home() {
   const [isSavingCreation, setIsSavingCreation] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [guestGenerationCount, setGuestGenerationCount] = useState(0);
+
+  const shouldOptimizeImage = useCallback((value: string | null) => {
+    if (!value) {
+      return false;
+    }
+
+    return /^https?:\/\//.test(value);
+  }, []);
 
   const supabase = useMemo(() => {
     const supabaseUrl =
@@ -81,6 +94,21 @@ export default function Home() {
     { value: "circle", label: "Circle" },
   ] as const;
 
+  const getContext = useCallback((canvas: HTMLCanvasElement | null) => {
+    if (!canvas) {
+      return null;
+    }
+
+    if (!contextRef.current) {
+      contextRef.current = canvas.getContext("2d", canvasContextOptions);
+      if (canvas instanceof HTMLCanvasElement) {
+        canvas.setAttribute("data-will-read-frequently", "true");
+      }
+    }
+
+    return contextRef.current;
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -91,14 +119,14 @@ export default function Home() {
 
     const resize = () => {
       const rect = container.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = Math.min(window.devicePixelRatio || 1, MAX_CANVAS_DPR);
 
       canvas.style.width = `${rect.width}px`;
       canvas.style.height = `${rect.height}px`;
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
 
-      const ctx = canvas.getContext("2d");
+      const ctx = getContext(canvas);
       if (!ctx) {
         return;
       }
@@ -121,7 +149,42 @@ export default function Home() {
     observer.observe(container);
 
     return () => observer.disconnect();
-  }, []);
+  }, [getContext]);
+
+  const getSketchDataUrl = useCallback(() => {
+    if (!hasSketch) {
+      return null;
+    }
+
+    const sourceCanvas = canvasRef.current;
+    if (!sourceCanvas) {
+      return null;
+    }
+
+    const largestSide = Math.max(sourceCanvas.width, sourceCanvas.height);
+    if (largestSide <= 0) {
+      return null;
+    }
+
+    const exportAsJpeg = () => sourceCanvas.toDataURL("image/jpeg", 0.82);
+
+    if (largestSide <= MAX_EXPORT_DIMENSION) {
+      return exportAsJpeg();
+    }
+
+    const scale = MAX_EXPORT_DIMENSION / largestSide;
+    const exportCanvas = document.createElement("canvas");
+    exportCanvas.width = Math.round(sourceCanvas.width * scale);
+    exportCanvas.height = Math.round(sourceCanvas.height * scale);
+
+    const exportContext = exportCanvas.getContext("2d");
+    if (!exportContext) {
+      return exportAsJpeg();
+    }
+
+    exportContext.drawImage(sourceCanvas, 0, 0, exportCanvas.width, exportCanvas.height);
+    return exportCanvas.toDataURL("image/jpeg", 0.82);
+  }, [hasSketch]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -129,7 +192,7 @@ export default function Home() {
       return;
     }
 
-    const ctx = canvas.getContext("2d");
+    const ctx = getContext(canvas);
     if (!ctx) {
       return;
     }
@@ -312,11 +375,11 @@ export default function Home() {
       canvas.removeEventListener("pointerleave", handlePointerLeave);
       canvas.removeEventListener("pointercancel", handlePointerCancel);
     };
-  }, [selectedTool, hasSketch]);
+  }, [getContext, hasSketch, selectedTool]);
 
   const handleClear = () => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
+    const ctx = getContext(canvas ?? null);
     if (!canvas || !ctx) {
       return;
     }
@@ -339,7 +402,7 @@ export default function Home() {
 
   const handleUndo = () => {
     const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
+    const ctx = getContext(canvas ?? null);
     if (!canvas || !ctx) {
       return;
     }
@@ -377,11 +440,16 @@ export default function Home() {
       return;
     }
 
-    const sketchDataUrl = hasSketch && canvas ? canvas.toDataURL("image/png") : null;
+    const sketchDataUrl = getSketchDataUrl();
 
     setIsGenerating(true);
     setErrorMessage(null);
     setStatusMessage("Generating with Nano Banana…");
+
+    const sketchMeta =
+      typeof sketchDataUrl === "string"
+        ? { present: true, length: sketchDataUrl.length }
+        : { present: false, length: 0 };
 
     try {
       const response = await fetch("/api/generate", {
@@ -395,7 +463,10 @@ export default function Home() {
         }),
       });
 
-      const result = await response.json().catch(() => ({}));
+      const result = await response.json().catch((parseError) => {
+        console.error("[SketchPic] generate:parse-error", parseError);
+        return {};
+      });
 
       if (!response.ok) {
         const message = typeof result?.error === "string" ? result.error : "Failed to generate an image.";
@@ -416,6 +487,7 @@ export default function Home() {
         localStorage.setItem("guestGenerationCount", newCount.toString());
       }
     } catch (error) {
+      console.error("[SketchPic] generate:error", error);
       const message = error instanceof Error ? error.message : "Something went wrong while generating the image.";
       setErrorMessage(message);
       setStatusMessage(null);
@@ -475,26 +547,43 @@ export default function Home() {
       return;
     }
 
-    const sketchDataUrl = hasSketch ? canvas.toDataURL("image/png") : null;
+    const sketchDataUrl = getSketchDataUrl();
     const trimmedPrompt = prompt.trim();
 
     setIsSavingCreation(true);
     setErrorMessage(null);
 
-    const { error } = await supabase.from("creations").insert({
-      user_id: user.id,
-      prompt: trimmedPrompt.length > 0 ? trimmedPrompt : null,
-      image_url: generatedImage,
-      sketch_data_url: sketchDataUrl,
-    });
+    try {
+      const response = await fetch("/api/creations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: trimmedPrompt.length > 0 ? trimmedPrompt : null,
+          generatedImage,
+          sketchDataUrl,
+        }),
+      });
 
-    if (error) {
-      setErrorMessage(error.message);
-    } else {
+      const result: { error?: string } | undefined = await response.json().catch(() => undefined);
+
+      if (!response.ok) {
+        const message =
+          typeof result?.error === "string"
+            ? result.error
+            : "Unable to save this creation. Please try again.";
+        throw new Error(message);
+      }
+
       setStatusMessage("Saved to your gallery!");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to save this creation. Please try again.";
+      setErrorMessage(message);
+    } finally {
+      setIsSavingCreation(false);
     }
-
-    setIsSavingCreation(false);
   };
 
   return (
@@ -637,17 +726,20 @@ export default function Home() {
             <h2 className="text-sm font-medium text-[#d0d2ff]">Generated image</h2>
             <span className="text-xs text-[#8e91bd]">Waiting for your prompt</span>
           </div>
-          <div className="mt-3 flex min-h-[300px] flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-[#3c3c60] bg-[#151523] text-sm sm:mt-4 sm:min-h-[420px]">
+          <div
+            className={`mt-3 min-h-[300px] flex-1 overflow-hidden rounded-2xl border-2 border-dashed border-[#3c3c60] bg-[#151523] text-sm sm:mt-4 sm:min-h-[420px] ${
+              generatedImage ? "relative" : "flex items-center justify-center"
+            }`}
+          >
             {generatedImage ? (
-              <div className="relative h-full w-full">
-                <Image
-                  src={generatedImage}
-                  alt="Generated from your sketch"
-                  fill
-                  sizes="(min-width: 1024px) 50vw, 100vw"
-                  className="object-contain"
-                />
-              </div>
+              <Image
+                src={generatedImage}
+                alt="Generated from your sketch"
+                fill
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-contain"
+                unoptimized={!shouldOptimizeImage(generatedImage)}
+              />
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 px-6 text-center text-[#8e91bd]">
                 <span>{isGenerating ? "Generating with Nano Banana…" : "Your image will appear here once it's ready."}</span>

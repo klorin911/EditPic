@@ -16,6 +16,9 @@ type Creation = {
   created_at: string;
 };
 
+const isRemoteImage = (value: string | null | undefined) =>
+  typeof value === "string" && /^https?:\/\//.test(value);
+
 export default function GalleryPage() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
@@ -263,6 +266,7 @@ export default function GalleryPage() {
                         fill
                         sizes="(min-width: 1024px) 25vw, (min-width: 640px) 40vw, 60vw"
                         className="object-cover transition duration-200 hover:scale-[1.02]"
+                        unoptimized={!isRemoteImage(creation.image_url)}
                       />
                     </button>
                   </div>
@@ -282,6 +286,7 @@ export default function GalleryPage() {
                             width={260}
                             height={260}
                             className="h-auto w-full max-w-[220px] object-contain sm:max-w-none"
+                            unoptimized={!isRemoteImage(creation.sketch_data_url)}
                           />
                         </div>
                       </div>
@@ -350,6 +355,7 @@ export default function GalleryPage() {
                   fill
                   sizes="(min-width: 1024px) 800px, 100vw"
                   className="object-contain"
+                  unoptimized={!isRemoteImage(selectedCreation.image_url)}
                   priority
                 />
               </div>
@@ -368,6 +374,7 @@ export default function GalleryPage() {
                       width={360}
                       height={360}
                       className="h-auto w-full max-w-xs rounded-xl border border-[#2f2f4a] bg-[#11111a] object-contain sm:max-w-md"
+                      unoptimized={!isRemoteImage(selectedCreation.sketch_data_url)}
                     />
                   </div>
                 </div>
