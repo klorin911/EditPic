@@ -91,19 +91,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { prompt, sketch } = await request.json();
+    const { prompt, sourceImage } = await request.json();
 
     if (typeof prompt !== "string" || prompt.trim().length === 0) {
       return NextResponse.json({ error: "Prompt is required." }, { status: 400 });
     }
 
-    const content: Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> = [
-      { type: "text", text: prompt.trim() },
-    ];
+    const content: Array<{ type: "text" | "image_url"; text?: string; image_url?: { url: string } }> = [];
 
-    if (typeof sketch === "string" && sketch.startsWith("data:image")) {
-      content.push({ type: "image_url", image_url: { url: sketch } });
+    if (typeof sourceImage === "string" && sourceImage.startsWith("data:image")) {
+      content.push({ type: "image_url", image_url: { url: sourceImage } });
     }
+
+    content.push({ type: "text", text: prompt.trim() });
 
     const response = await fetch(OPENROUTER_URL, {
       method: "POST",
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
         "HTTP-Referer": process.env.OPENROUTER_APP_URL ?? "http://localhost:3000",
-        "X-Title": process.env.OPENROUTER_APP_TITLE ?? "SketchPic",
+        "X-Title": process.env.OPENROUTER_APP_TITLE ?? "EditPic",
       },
       body: JSON.stringify({
         model: MODEL,
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
           {
             role: "system",
             content:
-              "You are Nano Banana, an image generation assistant. Combine the user's sketch (if provided) and description to render a single coherent image.",
+              "You are Nano Banana, an image editing assistant. Apply the user's requested changes to the provided image while preserving its context and quality.",
           },
           { role: "user", content },
         ],
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     if (typeof imageUrl !== "string") {
       return NextResponse.json(
-        { error: "The model response did not include an image. Try adjusting your prompt or sketch." },
+        { error: "The model response did not include an image. Try refining your instructions." },
         { status: 502 },
       );
     }

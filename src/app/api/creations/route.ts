@@ -137,8 +137,10 @@ export async function POST(request: NextRequest) {
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),
-      setAll: () => {
-        // No-op: we are not changing auth cookies in this route.
+      setAll: async (cookiesToSet) => {
+        for (const { name, value, options } of cookiesToSet) {
+          cookieStore.set(name, value, options);
+        }
       },
     },
   });
@@ -169,10 +171,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { prompt, generatedImage, sketchDataUrl } = payload as {
+  const { prompt, generatedImage, sourceImageDataUrl } = payload as {
     prompt?: string | null;
     generatedImage: string;
-    sketchDataUrl?: string | null;
+    sourceImageDataUrl?: string | null;
   };
 
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -219,7 +221,7 @@ export async function POST(request: NextRequest) {
 
   const uploadFolder = `users/${user.id}`;
   let storedImage: UploadResult | null = null;
-  let storedSketch: UploadResult | null = null;
+  let storedSource: UploadResult | null = null;
 
   try {
     storedImage = await uploadToStorage(
@@ -231,16 +233,16 @@ export async function POST(request: NextRequest) {
       generatedImageMime,
     );
 
-    if (sketchDataUrl && typeof sketchDataUrl === "string" && sketchDataUrl.startsWith("data:")) {
-      const sketchParsed = parseDataUrl(sketchDataUrl);
-      if (sketchParsed) {
-        storedSketch = await uploadToStorage(
+    if (sourceImageDataUrl && typeof sourceImageDataUrl === "string" && sourceImageDataUrl.startsWith("data:")) {
+      const sourceParsed = parseDataUrl(sourceImageDataUrl);
+      if (sourceParsed) {
+        storedSource = await uploadToStorage(
           serviceClient,
           bucketName,
           uploadFolder,
-          buildFileName(sketchParsed.extension),
-          sketchParsed.buffer,
-          sketchParsed.mimeType,
+          buildFileName(sourceParsed.extension),
+          sourceParsed.buffer,
+          sourceParsed.mimeType,
         );
       }
     }
@@ -261,19 +263,19 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       prompt: prompt && prompt.trim().length > 0 ? prompt.trim() : null,
       image_url: storedImage.publicUrl,
-      sketch_data_url: storedSketch?.publicUrl ?? null,
+      source_image_url: storedSource?.publicUrl ?? null,
     });
 
     if (insertError) {
-      console.error("[SketchPic] creations:insert", insertError);
+      console.error("[EditPic] creations:insert", insertError);
       throw insertError;
     }
   } catch (error) {
-    console.error("[SketchPic] creations:error", error);
+    console.error("[EditPic] creations:error", error);
     const message = error instanceof Error ? error.message : "Failed to save creation.";
 
     // Attempt a best-effort cleanup of uploaded files if the database insert fails.
-    const pathsToRemove = [storedImage?.storagePath, storedSketch?.storagePath].filter(
+    const pathsToRemove = [storedImage?.storagePath, storedSource?.storagePath].filter(
       (value): value is string => Boolean(value),
     );
     if (pathsToRemove.length > 0) {
@@ -286,6 +288,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     imageUrl: storedImage?.publicUrl ?? null,
-    sketchUrl: storedSketch?.publicUrl ?? null,
+    sourceUrl: storedSource?.publicUrl ?? null,
   });
 }

@@ -6,7 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import { useMemo, useState, useRef, useEffect } from "react";
 
 const NAV_LINKS = [
-  { href: "/", label: "Create" },
+  { href: "/", label: "Edit" },
   { href: "/gallery", label: "Gallery" },
 ] as const;
 
@@ -67,8 +67,8 @@ export default function Header({
     <header className="border-b border-[#24243a] bg-[#161622]">
       <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:flex-nowrap sm:gap-4 sm:py-4">
         <div className="flex min-w-[160px] flex-col">
-          <h1 className="text-base font-semibold text-[var(--color-foreground)] sm:text-lg">SketchPic</h1>
-          <p className="text-[11px] text-[#a4a6d0] sm:text-sm">You sketch it. We create it.</p>
+          <h1 className="text-base font-semibold text-[var(--color-foreground)] sm:text-lg">EditPic</h1>
+          <p className="text-[11px] text-[#a4a6d0] sm:text-sm">Upload it. We edit it.</p>
         </div>
         <nav className="order-3 flex w-full flex-col gap-2 sm:order-none sm:w-auto sm:flex-row sm:items-center sm:gap-2">
           <div className="relative mx-auto flex w-full max-w-[220px] overflow-hidden rounded-full border border-[#2f2f4a] bg-[#11111a] p-0.5 sm:hidden">

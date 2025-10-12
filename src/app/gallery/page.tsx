@@ -12,7 +12,7 @@ type Creation = {
   id: string;
   prompt: string | null;
   image_url: string;
-  sketch_data_url: string | null;
+  source_image_url: string | null;
   created_at: string;
 };
 
@@ -86,7 +86,7 @@ export default function GalleryPage() {
 
       const { data, error } = await supabase
         .from("creations")
-        .select("id,prompt,image_url,sketch_data_url,created_at")
+        .select("id,prompt,image_url,source_image_url,created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -158,7 +158,7 @@ export default function GalleryPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${creation.prompt ?? "sketchpic-creation"}-${creation.id}.png`;
+      link.download = `${creation.prompt ?? "editpic-creation"}-${creation.id}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -214,7 +214,7 @@ export default function GalleryPage() {
                   setIsLoading(true);
                   supabase
                     .from("creations")
-                    .select("id,prompt,image_url,sketch_data_url,created_at")
+                    .select("id,prompt,image_url,source_image_url,created_at")
                     .eq("user_id", user.id)
                     .order("created_at", { ascending: false })
                     .then(({ data, error }) => {
@@ -274,23 +274,6 @@ export default function GalleryPage() {
                     {creation.prompt && (
                       <p className="text-sm text-[#d0d2ff]">{creation.prompt}</p>
                     )}
-                    {creation.sketch_data_url && (
-                      <div>
-                        <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
-                          Original sketch
-                        </p>
-                        <div className="mt-2 overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#11111a] sm:max-w-full">
-                          <Image
-                            src={creation.sketch_data_url}
-                            alt="Original sketch"
-                            width={260}
-                            height={260}
-                            className="h-auto w-full max-w-[220px] object-contain sm:max-w-none"
-                            unoptimized={!isRemoteImage(creation.sketch_data_url)}
-                          />
-                        </div>
-                      </div>
-                    )}
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
                         {new Date(creation.created_at).toLocaleString()}
@@ -342,13 +325,15 @@ export default function GalleryPage() {
                 Close
               </button>
             </div>
-            <div className="space-y-4 pt-10">
+            <div className="space-y-6 pt-10">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
                   {new Date(selectedCreation.created_at).toLocaleString()}
                 </p>
               </div>
-              <div className="relative aspect-[4/3] w-full max-h-[70vh] overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#161622]">
+              
+              {/* Created Image */}
+              <div className="relative aspect-[4/3] w-full max-h-[60vh] overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#161622]">
                 <Image
                   src={selectedCreation.image_url}
                   alt={selectedCreation.prompt ?? "Generated image"}
@@ -359,23 +344,28 @@ export default function GalleryPage() {
                   priority
                 />
               </div>
+
               {selectedCreation.prompt && (
                 <p className="text-base text-[#d0d2ff]">{selectedCreation.prompt}</p>
               )}
-              {selectedCreation.sketch_data_url && (
-                <div>
+
+              {/* Original Image - shown underneath, smaller */}
+              {selectedCreation.source_image_url && (
+                <div className="space-y-2">
                   <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
-                    Original sketch
+                    Original image
                   </p>
-                  <div className="mt-2 flex justify-center">
-                    <Image
-                      src={selectedCreation.sketch_data_url}
-                      alt="Original sketch"
-                      width={360}
-                      height={360}
-                      className="h-auto w-full max-w-xs rounded-xl border border-[#2f2f4a] bg-[#11111a] object-contain sm:max-w-md"
-                      unoptimized={!isRemoteImage(selectedCreation.sketch_data_url)}
-                    />
+                  <div className="flex justify-center">
+                    <div className="relative w-full max-w-[300px] aspect-[4/3] overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#11111a]">
+                      <Image
+                        src={selectedCreation.source_image_url}
+                        alt="Original image"
+                        fill
+                        sizes="300px"
+                        className="object-contain"
+                        unoptimized={!isRemoteImage(selectedCreation.source_image_url)}
+                      />
+                    </div>
                   </div>
                 </div>
               )}
