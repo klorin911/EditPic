@@ -223,7 +223,7 @@ export default function Home() {
       const isInputFocused = activeElement && (
         activeElement.tagName === 'INPUT' ||
         activeElement.tagName === 'TEXTAREA' ||
-        activeElement.contentEditable === 'true'
+        (activeElement as HTMLElement).contentEditable === 'true'
       );
       
       if (!isInputFocused) {
@@ -477,7 +477,7 @@ export default function Home() {
                           }
                         }
                       }
-                    } catch (error) {
+                    } catch {
                       // Fallback: show a message that user should use Ctrl+V
                       setErrorMessage('Please use Ctrl+V (or Cmd+V on Mac) to paste an image from your clipboard.');
                       setTimeout(() => setErrorMessage(null), 3000);
