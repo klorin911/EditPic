@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
+import { useRouter } from "next/navigation";
 import Header from "@/components/Header";
 
 const GRID_COLUMNS = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5";
@@ -13,6 +14,7 @@ type Creation = {
   prompt: string | null;
   image_url: string;
   source_image_url: string | null;
+  parent_creation_id: string | null;
   created_at: string;
 };
 
@@ -20,6 +22,7 @@ const isRemoteImage = (value: string | null | undefined) =>
   typeof value === "string" && /^https?:\/\//.test(value);
 
 export default function GalleryPage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [creations, setCreations] = useState<Creation[]>([]);
@@ -28,6 +31,8 @@ export default function GalleryPage() {
   const [selectedCreation, setSelectedCreation] = useState<Creation | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editHistory, setEditHistory] = useState<Creation[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   const supabase = useMemo(() => {
     const supabaseUrl =
@@ -87,7 +92,7 @@ export default function GalleryPage() {
 
       const { data, error } = await supabase
         .from("creations")
-        .select("id,prompt,image_url,source_image_url,created_at")
+        .select("id,prompt,image_url,source_image_url,parent_creation_id,created_at")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
@@ -203,10 +208,39 @@ export default function GalleryPage() {
     }
   };
 
+  const handleReEdit = (creation: Creation) => {
+    router.push(`/?edit=${creation.id}`);
+  };
+
+  const loadEditHistory = async (creationId: string) => {
+    setIsLoadingHistory(true);
+    try {
+      const response = await fetch(`/api/creations/${creationId}/history`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load edit history.");
+      }
+
+      const { chain } = await response.json();
+      setEditHistory(chain || []);
+    } catch (error) {
+      console.error("[EditPic] load-history:error", error);
+      setEditHistory([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
   useEffect(() => {
     if (!selectedCreation) {
+      setEditHistory([]);
       return;
     }
+
+    // Load edit history when a creation is selected
+    loadEditHistory(selectedCreation.id);
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -245,7 +279,7 @@ export default function GalleryPage() {
                   setIsLoading(true);
                   supabase
                     .from("creations")
-                    .select("id,prompt,image_url,source_image_url,created_at")
+                    .select("id,prompt,image_url,source_image_url,parent_creation_id,created_at")
                     .eq("user_id", user.id)
                     .order("created_at", { ascending: false })
                     .then(({ data, error }) => {
@@ -319,6 +353,13 @@ export default function GalleryPage() {
             <div className="absolute right-4 top-4 flex items-center gap-2">
               <button
                 type="button"
+                onClick={() => handleReEdit(selectedCreation)}
+                className="rounded-full bg-indigo-500 px-4 py-1.5 text-xs uppercase tracking-wide text-white transition hover:bg-indigo-400"
+              >
+                Re-edit
+              </button>
+              <button
+                type="button"
                 onClick={() => handleDownload(selectedCreation)}
                 disabled={downloadingId === selectedCreation.id}
                 className="rounded-full bg-[#2b2b44] px-4 py-1.5 text-xs uppercase tracking-wide text-[#d0d2ff] transition hover:bg-[#34345a] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-60"
@@ -364,6 +405,62 @@ export default function GalleryPage() {
                   priority
                 />
               </div>
+              {/* Edit History */}
+              {editHistory.length > 1 && (
+                <div className="space-y-3">
+                  <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
+                    Edit History ({editHistory.length} steps)
+                  </p>
+                  <div className="space-y-2">
+                    {isLoadingHistory ? (
+                      <p className="text-xs text-[#8e91bd]">Loading history...</p>
+                    ) : (
+                      editHistory.map((step, index) => (
+                        <div
+                          key={step.id}
+                          className={`flex items-center gap-3 rounded-lg border p-3 transition ${
+                            step.id === selectedCreation.id
+                              ? "border-indigo-400 bg-indigo-500/10"
+                              : "border-[#2f2f4a] bg-[#161622] hover:border-[#3b3b58]"
+                          }`}
+                        >
+                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#1b1b2b] text-xs font-medium text-[#d0d2ff]">
+                            {index + 1}
+                          </div>
+                          <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg border border-[#2f2f4a] bg-[#11111a]">
+                            <Image
+                              src={step.image_url}
+                              alt={`Edit ${index + 1}`}
+                              fill
+                              sizes="48px"
+                              className="object-cover"
+                              unoptimized={!isRemoteImage(step.image_url)}
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-[#d0d2ff] truncate">
+                              {step.prompt || `Edit ${index + 1}`}
+                            </p>
+                            <p className="text-[10px] text-[#8e91bd]">
+                              {new Date(step.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                          {step.id !== selectedCreation.id && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedCreation(step)}
+                              className="rounded px-2 py-1 text-[10px] text-[#9ea0c9] transition hover:text-[var(--color-foreground)]"
+                            >
+                              View
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Original Image - shown underneath, smaller */}
               {selectedCreation.source_image_url && (
                 <div className="space-y-2">

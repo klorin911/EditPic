@@ -171,10 +171,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { prompt, generatedImage, sourceImageDataUrl } = payload as {
+  const { prompt, generatedImage, sourceImageDataUrl, parentCreationId } = payload as {
     prompt?: string | null;
     generatedImage: string;
     sourceImageDataUrl?: string | null;
+    parentCreationId?: string | null;
   };
 
   const serviceClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
@@ -258,18 +259,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  let insertData: { id: string } | null = null;
+
   try {
-    const { error: insertError } = await supabase.from("creations").insert({
+    const { data, error: insertError } = await supabase.from("creations").insert({
       user_id: user.id,
       prompt: prompt && prompt.trim().length > 0 ? prompt.trim() : null,
       image_url: storedImage.publicUrl,
       source_image_url: storedSource?.publicUrl ?? null,
-    });
+      parent_creation_id: parentCreationId && parentCreationId.trim().length > 0 ? parentCreationId.trim() : null,
+    }).select("id").single();
 
     if (insertError) {
       console.error("[EditPic] creations:insert", insertError);
       throw insertError;
     }
+
+    insertData = data;
   } catch (error) {
     console.error("[EditPic] creations:error", error);
     const message = error instanceof Error ? error.message : "Failed to save creation.";
@@ -287,6 +293,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
+    id: insertData?.id ?? null,
     imageUrl: storedImage?.publicUrl ?? null,
     sourceUrl: storedSource?.publicUrl ?? null,
   });

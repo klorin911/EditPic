@@ -1,10 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import type { ChangeEvent } from "react";
 import { createBrowserClient } from "@supabase/ssr";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
+import { useSearchParams } from "next/navigation";
 import Header from "@/components/Header";
 
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -32,7 +33,8 @@ async function readFileAsDataUrl(file: File) {
   });
 }
 
-export default function Home() {
+function HomeContent() {
+  const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const dropZoneRef = useRef<HTMLDivElement | null>(null);
@@ -50,6 +52,7 @@ export default function Home() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [guestGenerationCount, setGuestGenerationCount] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [lastSavedCreationId, setLastSavedCreationId] = useState<string | null>(null);
   const trimmedPromptValue = prompt.trim();
   const canGenerate = Boolean(uploadedImage && trimmedPromptValue && !isGenerating);
   const canDownload = Boolean(generatedImage);
@@ -111,6 +114,67 @@ export default function Home() {
       setGuestGenerationCount(parseInt(stored, 10) || 0);
     }
   }, []);
+
+  const loadCreationForEditing = useCallback(async (creationId: string) => {
+    if (!user) {
+      setErrorMessage("You must be signed in to re-edit creations.");
+      return;
+    }
+
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/creations/${creationId}`, {
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Creation not found.");
+        }
+        throw new Error("Failed to load creation for editing.");
+      }
+
+      const creation = await response.json();
+      
+      // Download the creation's image and set it as the source
+      const imageResponse = await fetch(creation.image_url);
+      if (!imageResponse.ok) {
+        throw new Error("Failed to load creation image.");
+      }
+
+      const blob = await imageResponse.blob();
+      const reader = new FileReader();
+      
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setUploadedImage(dataUrl);
+        setUploadedImageName(`creation-${creationId}.png`);
+        setUploadedImageSize(blob.size);
+        setPrompt(creation.prompt || "");
+        setLastSavedCreationId(creationId);
+        setStatusMessage("Loaded creation for editing. Modify your prompt and generate a new edit.");
+      };
+
+      reader.onerror = () => {
+        throw new Error("Failed to process creation image.");
+      };
+
+      reader.readAsDataURL(blob);
+    } catch (error) {
+      console.error("[EditPic] load-creation:error", error);
+      const message = error instanceof Error ? error.message : "Failed to load creation for editing.";
+      setErrorMessage(message);
+    }
+  }, [user]);
+
+  // Load creation from URL params when component mounts or user changes
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && user) {
+      loadCreationForEditing(editId);
+    }
+  }, [searchParams, user, loadCreationForEditing]);
 
   const handleImageSelection = useCallback(
     async (file: File) => {
@@ -193,6 +257,42 @@ export default function Home() {
     setUploadedImageSize(null);
     setGeneratedImage(null);
     setStatusMessage(null);
+  };
+
+  const handleUseAsSource = async () => {
+    if (!generatedImage) {
+      return;
+    }
+
+    try {
+      // Download the generated image and convert to data URL
+      const response = await fetch(generatedImage);
+      if (!response.ok) {
+        throw new Error("Failed to download generated image.");
+      }
+
+      const blob = await response.blob();
+      const reader = new FileReader();
+      
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        setUploadedImage(dataUrl);
+        setUploadedImageName("edited-image.png");
+        setUploadedImageSize(blob.size);
+        setGeneratedImage(null);
+        setStatusMessage("Using edited image as new source. Describe your next edit.");
+        setPrompt(""); // Clear the prompt for new edit
+      };
+
+      reader.onerror = () => {
+        setErrorMessage("Failed to load the generated image as source.");
+      };
+
+      reader.readAsDataURL(blob);
+    } catch (error) {
+      console.error("[EditPic] use-as-source:error", error);
+      setErrorMessage("Unable to use generated image as source. Try again.");
+    }
   };
 
   const handlePaste = useCallback(
@@ -368,10 +468,11 @@ export default function Home() {
           prompt: trimmedPrompt.length > 0 ? trimmedPrompt : null,
           generatedImage,
           sourceImageDataUrl: uploadedImage,
+          parentCreationId: lastSavedCreationId,
         }),
       });
 
-      const result: { error?: string } | undefined = await response.json().catch(() => undefined);
+      const result: { error?: string; id?: string } | undefined = await response.json().catch(() => undefined);
 
       if (!response.ok) {
         const message =
@@ -382,6 +483,11 @@ export default function Home() {
       }
 
       setStatusMessage("Saved to your gallery!");
+      
+      // Extract creation ID from response if available
+      if (result?.id) {
+        setLastSavedCreationId(result.id);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to save this edit. Please try again.";
       setErrorMessage(message);
@@ -552,6 +658,13 @@ export default function Home() {
                   className="w-full rounded-xl border border-[#2f2f4a] px-4 py-3 text-sm text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {user ? (isSavingCreation ? "Saving…" : "Save to gallery") : "Sign in to save"}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUseAsSource}
+                  className="w-full rounded-xl border border-[#2f2f4a] px-4 py-3 text-sm text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
+                >
+                  Edit this result
                 </button>
                 <button
                   type="button"
@@ -871,13 +984,22 @@ export default function Home() {
                 {isGenerating ? "Editing…" : "Edit image"}
               </button>
               {generatedImage && (
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  className="mt-2 w-full rounded-xl border border-[#2f2f4a] px-4 py-2.5 text-sm text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
-                >
-                  Download edited image
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="mt-2 w-full rounded-xl border border-[#2f2f4a] px-4 py-2.5 text-sm text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
+                  >
+                    Download edited image
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleUseAsSource}
+                    className="mt-2 w-full rounded-xl border border-[#2f2f4a] px-4 py-2.5 text-sm text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
+                  >
+                    Edit this result
+                  </button>
+                </>
               )}
               <button
                 type="button"
@@ -937,5 +1059,13 @@ export default function Home() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <HomeContent />
+    </Suspense>
   );
 }
