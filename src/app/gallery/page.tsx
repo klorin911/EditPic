@@ -6,7 +6,7 @@ import { createBrowserClient } from "@supabase/ssr";
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 import Header from "@/components/Header";
 
-const GRID_COLUMNS = "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+const GRID_COLUMNS = "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5";
 
 type Creation = {
   id: string;
@@ -27,6 +27,7 @@ export default function GalleryPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedCreation, setSelectedCreation] = useState<Creation | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const supabase = useMemo(() => {
     const supabaseUrl =
@@ -172,6 +173,36 @@ export default function GalleryPage() {
     }
   };
 
+  const handleDelete = async (creation: Creation) => {
+    if (!user) {
+      setErrorMessage("You need to be signed in to delete a creation.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setDeletingId(creation.id);
+    try {
+      const { error } = await supabase
+        .from("creations")
+        .delete()
+        .eq("id", creation.id)
+        .eq("user_id", user.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setCreations((prev) => prev.filter((item) => item.id !== creation.id));
+      setSelectedCreation((prev) => (prev && prev.id === creation.id ? null : prev));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Delete failed. Please try again.";
+      setErrorMessage(message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   useEffect(() => {
     if (!selectedCreation) {
       return;
@@ -245,49 +276,27 @@ export default function GalleryPage() {
               No creations yet. Head back to the creator and save your first masterpiece!
             </p>
           ) : (
-            <ul
-              className={`mt-6 grid justify-items-center gap-5 sm:justify-items-stretch ${GRID_COLUMNS}`}
-            >
+            <ul className={`mt-6 grid gap-3 sm:gap-4 lg:gap-5 ${GRID_COLUMNS}`}>
               {creations.map((creation) => (
                 <li
                   key={creation.id}
-                  className="flex w-full max-w-xs flex-col overflow-hidden rounded-2xl border border-[#2f2f4a] bg-[#161622] sm:max-w-none"
+                  className="group relative aspect-square w-full overflow-hidden rounded-2xl border border-[#2f2f4a] bg-[#161622] shadow-sm shadow-black/30"
                 >
-                  <div className="relative h-32 w-full sm:h-48">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCreation(creation)}
-                      className="relative block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]"
-                      aria-label={`Open preview for ${creation.prompt ?? "generated image"}`}
-                    >
-                      <Image
-                        src={creation.image_url}
-                        alt={creation.prompt ?? "Generated image"}
-                        fill
-                        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 40vw, 60vw"
-                        className="object-cover transition duration-200 hover:scale-[1.02]"
-                        unoptimized={!isRemoteImage(creation.image_url)}
-                      />
-                    </button>
-                  </div>
-                  <div className="space-y-3 p-4">
-                    {creation.prompt && (
-                      <p className="text-sm text-[#d0d2ff]">{creation.prompt}</p>
-                    )}
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
-                        {new Date(creation.created_at).toLocaleString()}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleDownload(creation)}
-                        disabled={downloadingId === creation.id}
-                        className="self-start rounded-full border border-[#2f2f4a] px-3 py-1 text-xs text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-60 sm:self-auto"
-                      >
-                        {downloadingId === creation.id ? "Downloading…" : "Download"}
-                      </button>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCreation(creation)}
+                    className="absolute inset-0 block h-full w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6366f1]"
+                    aria-label={`Open preview for ${creation.prompt ?? "generated image"}`}
+                  >
+                    <Image
+                      src={creation.image_url}
+                      alt={creation.prompt ?? "Generated image"}
+                      fill
+                      sizes="(min-width: 1280px) 15vw, (min-width: 1024px) 20vw, (min-width: 640px) 30vw, 45vw"
+                      className="object-cover transition duration-300 ease-out group-hover:scale-105"
+                      unoptimized={!isRemoteImage(creation.image_url)}
+                    />
+                  </button>
                 </li>
               ))}
             </ul>
@@ -306,7 +315,7 @@ export default function GalleryPage() {
             onClick={() => setSelectedCreation(null)}
             aria-hidden="true"
           />
-          <div className="relative z-10 w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#2f2f4a] bg-[#11111a] p-6 shadow-lg shadow-black/40 max-h-[calc(100vh-4rem)]">
+          <div className="relative z-10 w-full max-w-4xl overflow-y-auto rounded-2xl border border-[#2f2f4a] bg-[#11111a] p-6 shadow-lg shadow-black/40 max-h-[calc(100vh-4rem)]">
             <div className="absolute right-4 top-4 flex items-center gap-2">
               <button
                 type="button"
@@ -318,6 +327,14 @@ export default function GalleryPage() {
               </button>
               <button
                 type="button"
+                onClick={() => handleDelete(selectedCreation)}
+                disabled={deletingId === selectedCreation.id}
+                className="rounded-full bg-[#40212c] px-4 py-1.5 text-xs uppercase tracking-wide text-[#f8b4c0] transition hover:bg-[#4e2735] hover:text-[#ffe0e7] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingId === selectedCreation.id ? "Deleting…" : "Delete"}
+              </button>
+              <button
+                type="button"
                 onClick={() => setSelectedCreation(null)}
                 className="rounded-full border border-[#2f2f4a] px-3 py-1 text-xs uppercase tracking-wide text-[#9ea0c9] transition hover:border-[#3b3b58] hover:text-[var(--color-foreground)]"
                 aria-label="Close image preview"
@@ -326,14 +343,17 @@ export default function GalleryPage() {
               </button>
             </div>
             <div className="space-y-6 pt-10">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-1">
+                <p className="text-sm font-medium text-[#d0d2ff]">
+                  {selectedCreation.prompt ?? "Generated image"}
+                </p>
                 <p className="text-[11px] uppercase tracking-wide text-[#6f739b]">
                   {new Date(selectedCreation.created_at).toLocaleString()}
                 </p>
               </div>
-              
+
               {/* Created Image */}
-              <div className="relative aspect-[4/3] w-full max-h-[60vh] overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#161622]">
+              <div className="relative aspect-[4/3] w-full max-h-[70vh] overflow-hidden rounded-xl border border-[#2f2f4a] bg-[#161622]">
                 <Image
                   src={selectedCreation.image_url}
                   alt={selectedCreation.prompt ?? "Generated image"}
@@ -344,11 +364,6 @@ export default function GalleryPage() {
                   priority
                 />
               </div>
-
-              {selectedCreation.prompt && (
-                <p className="text-base text-[#d0d2ff]">{selectedCreation.prompt}</p>
-              )}
-
               {/* Original Image - shown underneath, smaller */}
               {selectedCreation.source_image_url && (
                 <div className="space-y-2">
